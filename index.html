@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Multi-Image OCR with Tesseract.js v5</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+
+<h2>Upload Multiple Images for OCR</h2>
+<input type="file" id="fileInput" multiple accept="image/*" />
+<button id="processBtn" disabled>Process Images</button>
+
+<div id="results"></div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const processBtn = document.getElementById('processBtn');
+  const resultsDiv = document.getElementById('results');
+  let files = [];
+
+  fileInput.addEventListener('change', () => {
+    files = Array.from(fileInput.files);
+    processBtn.disabled = files.length === 0;
+    resultsDiv.innerHTML = '';
+  });
+
+  processBtn.addEventListener('click', async () => {
+    if (files.length === 0) return;
+
+    processBtn.disabled = true;
+    resultsDiv.innerHTML = '';
+
+    // Create and initialize worker with language in one step
+    const worker = await Tesseract.createWorker('eng');
+
+    for (const file of files) {
+      const container = document.createElement('div');
+      container.style.marginBottom = '1em';
+
+      const title = document.createElement('strong');
+      title.textContent = `File: ${file.name}`;
+      container.appendChild(title);
+
+      const pre = document.createElement('pre');
+      pre.textContent = 'Processing...';
+      container.appendChild(pre);
+
+      resultsDiv.appendChild(container);
+
+      try {
+        const { data: { text } } = await worker.recognize(file);
+        pre.textContent = text.trim() || '[No text detected]';
+      } catch (err) {
+        pre.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    await worker.terminate();
+    processBtn.disabled = false;
+  });
+</script>
+</body>
+</html>
