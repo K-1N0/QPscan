@@ -1,1 +1,3 @@
 27/06/2025: Git repo initialized, all problems faced will be noted here.
+27/06/2025: OCR is now functional on both the backend and frontend, HTML code will be saved as "index.html".
+          - There was nothing particularly too difficult, it was quite straight forward.
