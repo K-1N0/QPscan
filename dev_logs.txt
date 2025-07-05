@@ -2,3 +2,6 @@
 27/06/2025: OCR is now functional on both the backend and frontend, HTML code will be saved as "index.html".
           - There was nothing particularly too difficult, it was quite straight forward.
 01/07/2025: Project is officially public.
+05/07/2025: Plans for using Hugo for making the static website.
+          - Will be hosted using github pages as it is simply a project.
+          - API is probably going to be coded in Go as well.
