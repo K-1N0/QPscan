@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image OCR & Search API</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f7f9fa;
+      margin: 0;
+      padding: 0;
+      color: #222;
+    }
+    header {
+      background: #1e90ff;
+      color: #fff;
+      padding: 2rem 1rem 1rem 1rem;
+      text-align: center;
+      border-bottom-left-radius: 1.5rem;
+      border-bottom-right-radius: 1.5rem;
+    }
+    main {
+      max-width: 700px;
+      margin: 2rem auto;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 2px 24px rgba(0,0,0,0.05);
+      padding: 2rem 2.5rem;
+    }
+    h2 {
+      margin-top: 1.5rem;
+      color: #1e90ff;
+      margin-bottom: 1rem;
+    }
+    input[type="file"], input[type="text"], select {
+      padding: 0.5rem;
+      border: 1px solid #ccd6df;
+      border-radius: 6px;
+      font-size: 1rem;
+      margin-right: 0.5rem;
+    }
+    button {
+      background: #1e90ff;
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:disabled {
+      background: #a4c7f8;
+      cursor: not-allowed;
+    }
+    .file-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .ocr-result {
+      background: #f0f6fc;
+      border: 1px solid #dbeafd;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      box-shadow: 0 1px 5px rgba(30,144,255,0.06);
+    }
+    .ocr-result strong {
+      display: block;
+      margin-bottom: 0.3rem;
+      color: #0067c7;
+    }
+    .ocr-text-preview {
+      background: #fff;
+      border: 1px solid #e0e7ef;
+      padding: 0.5rem;
+      border-radius: 5px;
+      margin-bottom: 0.7rem;
+      font-family: monospace;
+      font-size: 1rem;
+      max-height: 8em;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .portion-select-group {
+      margin-bottom: 0.7rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      font-size: 0.98rem;
+    }
+    .api-result {
+      background: #f9fbe7;
+      border: 1px solid #e6e9c8;
+      border-radius: 6px;
+      padding: 0.7rem;
+      font-size: 0.98rem;
+      color: #525600;
+      margin-bottom: 0.6rem;
+      word-break: break-all;
+    }
+    .error-message {
+      color: #c0392b;
+      background: #ffeded;
+      border: 1px solid #ffdada;
+      padding: 0.7rem;
+      border-radius: 6px;
+      margin-bottom: 0.7rem;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #e7eaf3;
+      margin: 2rem 0;
+    }
+    @media (max-width: 600px) {
+      main {
+        padding: 1rem;
+      }
+      .file-group {
+        flex-direction: column;
+        gap: 0.7rem;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🖼️ Image OCR & Search API</h1>
+    <p style="margin:0.5rem 0 0 0;">Extract text from images and send your chosen portion to the API.</p>
+  </header>
+  <main>
+    <section>
+      <h2>1. Upload Images for OCR</h2>
+      <div class="file-group">
+        <input type="file" id="fileInput" multiple accept="image/*" />
+        <button id="processBtn" disabled>Process Images</button>
+      </div>
+      <div id="results"></div>
+    </section>
+
+    <hr>
+
+    <section>
+      <h2>2. Manual Text Search</h2>
+      <form id="searchForm" style="margin-bottom: 1.5em;">
+        <input type="text" id="searchInput" placeholder="Enter your search string" required style="width: 300px;" />
+        <button type="submit">Search</button>
+      </form>
+      <div id="searchResult"></div>
+    </section>
+  </main>
+  <script>
+    // Elements
+    const fileInput = document.getElementById('fileInput');
+    const processBtn = document.getElementById('processBtn');
+    const resultsDiv = document.getElementById('results');
+    let files = [];
+
+    fileInput.addEventListener('change', () => {
+      files = Array.from(fileInput.files);
+      processBtn.disabled = files.length === 0;
+      resultsDiv.innerHTML = '';
+    });
+
+    processBtn.addEventListener('click', async () => {
+      if (files.length === 0) return;
+
+      processBtn.disabled = true;
+      resultsDiv.innerHTML = '';
+
+      const worker = await Tesseract.createWorker('eng');
+
+      for (const file of files) {
+        // UI elements per file
+        const container = document.createElement('div');
+        container.className = "ocr-result";
+
+        const title = document.createElement('strong');
+        title.textContent = `File: ${file.name}`;
+        container.appendChild(title);
+
+        const pre = document.createElement('div');
+        pre.className = "ocr-text-preview";
+        pre.textContent = 'Processing...';
+        container.appendChild(pre);
+
+        resultsDiv.appendChild(container);
+
+        try {
+          const { data: { text } } = await worker.recognize(file);
+          const trimmed = text.trim() || '[No text detected]';
+          pre.textContent = trimmed;
+
+          // Split into lines for selection
+          const lines = trimmed.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          // Build selection UI
+          const portionGroup = document.createElement('div');
+          portionGroup.className = 'portion-select-group';
+
+          const label = document.createElement('label');
+          label.textContent = "Select portion to send:";
+          label.htmlFor = `portion-select-${file.name}`;
+          portionGroup.appendChild(label);
+
+          const select = document.createElement('select');
+          select.id = `portion-select-${file.name}`;
+          // Add 'Full text' option
+          const optFull = document.createElement('option');
+          optFull.value = "__FULL__";
+          optFull.textContent = "Full text";
+          select.appendChild(optFull);
+          // Add line options
+          lines.forEach((line, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = `Line ${idx + 1}: "${line.length > 40 ? line.slice(0, 38) + '…' : line}"`;
+            select.appendChild(opt);
+          });
+          portionGroup.appendChild(select);
+
+          const sendBtn = document.createElement('button');
+          sendBtn.textContent = "Send to API";
+          sendBtn.style.marginLeft = "0.5rem";
+          portionGroup.appendChild(sendBtn);
+
+          container.appendChild(portionGroup);
+
+          // API result display
+          const apiResult = document.createElement('div');
+          container.appendChild(apiResult);
+
+          sendBtn.addEventListener('click', async () => {
+            sendBtn.disabled = true;
+            apiResult.textContent = '';
+            apiResult.className = '';
+            let valueToSend = '';
+            if (select.value === "__FULL__") {
+              valueToSend = trimmed;
+            } else {
+              valueToSend = lines[Number(select.value)] || '';
+            }
+            if (!valueToSend || valueToSend === '[No text detected]') {
+              apiResult.textContent = "Nothing to send to the API.";
+              apiResult.className = 'error-message';
+              sendBtn.disabled = false;
+              return;
+            }
+            apiResult.textContent = "Sending to API...";
+            apiResult.className = '';
+            try {
+              const response = await fetch('http://192.168.68.102:8080/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ search_str: valueToSend })
+              });
+              if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+              }
+              const data = await response.json();
+              apiResult.textContent = JSON.stringify(data, null, 2);
+              apiResult.className = 'api-result';
+            } catch (err) {
+              apiResult.textContent = `API Error: ${err.message}`;
+              apiResult.className = 'error-message';
+            }
+            sendBtn.disabled = false;
+          });
+        } catch (err) {
+          pre.textContent = `Error: ${err.message}`;
+        }
+      }
+
+      await worker.terminate();
+      processBtn.disabled = false;
+    });
+
+    // Manual Search
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('searchInput');
+    const searchResult = document.getElementById('searchResult');
+
+    searchForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const searchStr = searchInput.value.trim();
+      if (!searchStr) return;
+
+      searchResult.textContent = 'Searching...';
+      searchResult.className = '';
+
+      try {
+        const response = await fetch('http://192.168.68.102:8080/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ search_str: searchStr })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        searchResult.textContent = JSON.stringify(data, null, 2);
+        searchResult.className = 'api-result';
+      } catch (err) {
+        searchResult.textContent = `Error: ${err.message}`;
+        searchResult.className = 'error-message';
+      }
+    });
+  </script>
+</body>
+</html>
