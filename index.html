@@ -3,312 +3,363 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Image OCR & Search API</title>
+  <title>Document Search</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
+    :root {
+      --primary-color: #2563eb;
+      --background-color: #f8fafc;
+      --text-color: #1e293b;
+      --card-bg: #fff;
+      --border-color: #e2e8f0;
+      --result-bg: #f1f5f9;
+      --result-border: #cbd5e1;
+      --highlight-bg: #fef9c3;
+      --highlight-border: #fef08a;
+      --error-bg: #fee2e2;
+      --error-border: #fecaca;
+      --error-text: #b91c1c;
+      transition: all 0.3s ease;
+    }
+
+    [data-theme="dark"] {
+      --primary-color: #3b82f6;
+      --background-color: #0f172a;
+      --text-color: #e2e8f0;
+      --card-bg: #1e293b;
+      --border-color: #334155;
+      --result-bg: #1e293b;
+      --result-border: #334155;
+      --highlight-bg: #1e293b;
+      --highlight-border: #334155;
+      --error-bg: #451a1a;
+      --error-border: #7f1d1d;
+      --error-text: #fca5a5;
+    }
+
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      background: #f7f9fa;
+      font-family: 'Inter', sans-serif;
+      background: var(--background-color);
       margin: 0;
       padding: 0;
-      color: #222;
+      color: var(--text-color);
+      line-height: 1.6;
     }
-    header {
-      background: #1e90ff;
-      color: #fff;
-      padding: 2rem 1rem 1rem 1rem;
-      text-align: center;
-      border-bottom-left-radius: 1.5rem;
-      border-bottom-right-radius: 1.5rem;
+
+    #theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+      transition: transform 0.2s;
     }
+
+    #theme-toggle:hover {
+      transform: translateY(-2px);
+    }
+
     main {
-      max-width: 700px;
+      max-width: 1000px;
       margin: 2rem auto;
-      background: #fff;
-      border-radius: 18px;
-      box-shadow: 0 2px 24px rgba(0,0,0,0.05);
-      padding: 2rem 2.5rem;
+      background: var(--card-bg);
+      border-radius: 1rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 2rem;
     }
-    h2 {
-      margin-top: 1.5rem;
-      color: #1e90ff;
+
+    .search-container {
+      margin-bottom: 2rem;
+    }
+
+    .search-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
       margin-bottom: 1rem;
     }
-    input[type="file"], input[type="text"], select {
-      padding: 0.5rem;
-      border: 1px solid #ccd6df;
-      border-radius: 6px;
-      font-size: 1rem;
-      margin-right: 0.5rem;
+
+    .option-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-color);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      padding: 0.8rem;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      background: var(--card-bg);
+      color: var(--text-color);
+      font-family: 'Inter', sans-serif;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
     button {
-      background: #1e90ff;
+      background: var(--primary-color);
       color: #fff;
       border: none;
-      padding: 0.6rem 1.2rem;
-      border-radius: 6px;
+      padding: 0.8rem 1.5rem;
+      border-radius: 0.5rem;
       font-size: 1rem;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
     }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    }
+
     button:disabled {
-      background: #a4c7f8;
+      background: var(--border-color);
       cursor: not-allowed;
     }
-    .file-group {
+
+    .results {
+      margin-top: 2rem;
+    }
+
+    .result-item {
+      background: var(--result-bg);
+      border: 1px solid var(--result-border);
+      border-radius: 0.8rem;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-header {
       display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      margin-bottom: 1.5rem;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
     }
-    .ocr-result {
-      background: #f0f6fc;
-      border: 1px solid #dbeafd;
-      border-radius: 8px;
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      box-shadow: 0 1px 5px rgba(30,144,255,0.06);
+
+    .result-title {
+      font-weight: 600;
+      color: var(--primary-color);
     }
-    .ocr-result strong {
-      display: block;
-      margin-bottom: 0.3rem;
-      color: #0067c7;
+
+    .result-score {
+      font-size: 0.9rem;
+      color: var(--text-color);
+      opacity: 0.8;
     }
-    .ocr-text-preview {
-      background: #fff;
-      border: 1px solid #e0e7ef;
-      padding: 0.5rem;
-      border-radius: 5px;
-      margin-bottom: 0.7rem;
-      font-family: monospace;
+
+    .result-metadata {
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      color: var(--text-color);
+      opacity: 0.8;
+    }
+
+    .result-content {
       font-size: 1rem;
-      max-height: 8em;
-      overflow-y: auto;
+      line-height: 1.6;
       white-space: pre-wrap;
     }
-    .portion-select-group {
-      margin-bottom: 0.7rem;
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      font-size: 0.98rem;
+
+    .result-content mark {
+      background-color: var(--highlight-bg);
+      border-radius: 0.2rem;
+      padding: 0.1rem 0.3rem;
     }
-    .api-result {
-      background: #f9fbe7;
-      border: 1px solid #e6e9c8;
-      border-radius: 6px;
-      padding: 0.7rem;
-      font-size: 0.98rem;
-      color: #525600;
-      margin-bottom: 0.6rem;
-      word-break: break-all;
-    }
+
     .error-message {
-      color: #c0392b;
-      background: #ffeded;
-      border: 1px solid #ffdada;
-      padding: 0.7rem;
-      border-radius: 6px;
-      margin-bottom: 0.7rem;
+      color: var(--error-text);
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
+      padding: 1rem;
+      border-radius: 0.8rem;
+      margin-bottom: 1rem;
     }
-    hr {
-      border: none;
-      border-top: 1px solid #e7eaf3;
-      margin: 2rem 0;
-    }
-    @media (max-width: 600px) {
+
+    @media (max-width: 768px) {
       main {
-        padding: 1rem;
+        margin: 1rem;
+        padding: 1.5rem;
       }
-      .file-group {
-        flex-direction: column;
-        gap: 0.7rem;
-        align-items: stretch;
+
+      .search-options {
+        grid-template-columns: 1fr;
       }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🖼️ Image OCR & Search API</h1>
-    <p style="margin:0.5rem 0 0 0;">Extract text from images and send your chosen portion to the API.</p>
-  </header>
+  <button id="theme-toggle" aria-label="Toggle dark mode">Light</button>
   <main>
-    <section>
-      <h2>1. Upload Images for OCR</h2>
-      <div class="file-group">
-        <input type="file" id="fileInput" multiple accept="image/*" />
-        <button id="processBtn" disabled>Process Images</button>
+    <div class="search-container">
+      <div class="search-options">
+        <div class="option-group">
+          <label for="searchInput">Search Terms</label>
+          <input type="text" id="searchInput" placeholder="Enter search terms..." required>
+        </div>
+        <div class="option-group">
+          <label for="maxResults">Maximum Results</label>
+          <input type="number" id="maxResults" value="50" min="1" max="100">
+        </div>
+        <div class="option-group">
+          <label for="yearFilter">Filter by Year</label>
+          <input type="number" id="yearFilter" placeholder="e.g., 2023">
+        </div>
+        <div class="option-group">
+          <label for="monthFilter">Filter by Month</label>
+          <select id="monthFilter">
+            <option value="">All Months</option>
+            <option value="January">January</option>
+            <option value="February">February</option>
+            <option value="March">March</option>
+            <option value="April">April</option>
+            <option value="May">May</option>
+            <option value="June">June</option>
+            <option value="July">July</option>
+            <option value="August">August</option>
+            <option value="September">September</option>
+            <option value="October">October</option>
+            <option value="November">November</option>
+            <option value="December">December</option>
+          </select>
+        </div>
+        <div class="option-group">
+          <label for="unitFilter">Filter by Unit</label>
+          <input type="text" id="unitFilter" placeholder="Enter unit...">
+        </div>
       </div>
-      <div id="results"></div>
-    </section>
-
-    <hr>
-
-    <section>
-      <h2>2. Manual Text Search</h2>
-      <form id="searchForm" style="margin-bottom: 1.5em;">
-        <input type="text" id="searchInput" placeholder="Enter your search string" required style="width: 300px;" />
-        <button type="submit">Search</button>
-      </form>
-      <div id="searchResult"></div>
-    </section>
+      <button id="searchButton">Search Documents</button>
+    </div>
+    <div id="results" class="results"></div>
   </main>
-  <script>
-    // Elements
-    const fileInput = document.getElementById('fileInput');
-    const processBtn = document.getElementById('processBtn');
-    const resultsDiv = document.getElementById('results');
-    let files = [];
 
-    fileInput.addEventListener('change', () => {
-      files = Array.from(fileInput.files);
-      processBtn.disabled = files.length === 0;
-      resultsDiv.innerHTML = '';
+  <script>
+    // Theme toggle functionality
+    const themeToggle = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    html.setAttribute('data-theme', savedTheme);
+    updateThemeToggle();
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeToggle();
     });
 
-    processBtn.addEventListener('click', async () => {
-      if (files.length === 0) return;
+    function updateThemeToggle() {
+      themeToggle.textContent = html.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light';
+    }
 
-      processBtn.disabled = true;
-      resultsDiv.innerHTML = '';
+    // Search functionality
+    const searchButton = document.getElementById('searchButton');
+    const resultsDiv = document.getElementById('results');
 
-      const worker = await Tesseract.createWorker('eng');
+    searchButton.addEventListener('click', async () => {
+      const searchInput = document.getElementById('searchInput');
+      const maxResults = document.getElementById('maxResults');
+      const yearFilter = document.getElementById('yearFilter');
+      const monthFilter = document.getElementById('monthFilter');
+      const unitFilter = document.getElementById('unitFilter');
 
-      for (const file of files) {
-        // UI elements per file
-        const container = document.createElement('div');
-        container.className = "ocr-result";
-
-        const title = document.createElement('strong');
-        title.textContent = `File: ${file.name}`;
-        container.appendChild(title);
-
-        const pre = document.createElement('div');
-        pre.className = "ocr-text-preview";
-        pre.textContent = 'Processing...';
-        container.appendChild(pre);
-
-        resultsDiv.appendChild(container);
-
-        try {
-          const { data: { text } } = await worker.recognize(file);
-          const trimmed = text.trim() || '[No text detected]';
-          pre.textContent = trimmed;
-
-          // Split into lines for selection
-          const lines = trimmed.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-          // Build selection UI
-          const portionGroup = document.createElement('div');
-          portionGroup.className = 'portion-select-group';
-
-          const label = document.createElement('label');
-          label.textContent = "Select portion to send:";
-          label.htmlFor = `portion-select-${file.name}`;
-          portionGroup.appendChild(label);
-
-          const select = document.createElement('select');
-          select.id = `portion-select-${file.name}`;
-          // Add 'Full text' option
-          const optFull = document.createElement('option');
-          optFull.value = "__FULL__";
-          optFull.textContent = "Full text";
-          select.appendChild(optFull);
-          // Add line options
-          lines.forEach((line, idx) => {
-            const opt = document.createElement('option');
-            opt.value = idx;
-            opt.textContent = `Line ${idx + 1}: "${line.length > 40 ? line.slice(0, 38) + '…' : line}"`;
-            select.appendChild(opt);
-          });
-          portionGroup.appendChild(select);
-
-          const sendBtn = document.createElement('button');
-          sendBtn.textContent = "Send to API";
-          sendBtn.style.marginLeft = "0.5rem";
-          portionGroup.appendChild(sendBtn);
-
-          container.appendChild(portionGroup);
-
-          // API result display
-          const apiResult = document.createElement('div');
-          container.appendChild(apiResult);
-
-          sendBtn.addEventListener('click', async () => {
-            sendBtn.disabled = true;
-            apiResult.textContent = '';
-            apiResult.className = '';
-            let valueToSend = '';
-            if (select.value === "__FULL__") {
-              valueToSend = trimmed;
-            } else {
-              valueToSend = lines[Number(select.value)] || '';
-            }
-            if (!valueToSend || valueToSend === '[No text detected]') {
-              apiResult.textContent = "Nothing to send to the API.";
-              apiResult.className = 'error-message';
-              sendBtn.disabled = false;
-              return;
-            }
-            apiResult.textContent = "Sending to API...";
-            apiResult.className = '';
-            try {
-              const response = await fetch('http://192.168.68.102:8080/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ search_str: valueToSend })
-              });
-              if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-              }
-              const data = await response.json();
-              apiResult.textContent = JSON.stringify(data, null, 2);
-              apiResult.className = 'api-result';
-            } catch (err) {
-              apiResult.textContent = `API Error: ${err.message}`;
-              apiResult.className = 'error-message';
-            }
-            sendBtn.disabled = false;
-          });
-        } catch (err) {
-          pre.textContent = `Error: ${err.message}`;
-        }
+      const query = searchInput.value.trim();
+      if (!query) {
+        resultsDiv.innerHTML = '<div class="error-message">Search terms cannot be empty</div>';
+        return;
       }
 
-      await worker.terminate();
-      processBtn.disabled = false;
-    });
-
-    // Manual Search
-    const searchForm = document.getElementById('searchForm');
-    const searchInput = document.getElementById('searchInput');
-    const searchResult = document.getElementById('searchResult');
-
-    searchForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const searchStr = searchInput.value.trim();
-      if (!searchStr) return;
-
-      searchResult.textContent = 'Searching...';
-      searchResult.className = '';
+      searchButton.disabled = true;
+      resultsDiv.innerHTML = '<div class="result-item">Searching...</div>';
 
       try {
-        const response = await fetch('http://192.168.68.102:8080/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ search_str: searchStr })
+        // Construct the search URL with parameters
+        const params = new URLSearchParams();
+        params.set('q', query);
+        params.set('rows', maxResults.value);
+
+        if (yearFilter.value) {
+          params.append('fq', `year:${yearFilter.value}`);
+        }
+        if (monthFilter.value) {
+          params.append('fq', `month:"${monthFilter.value}"`);
+        }
+        if (unitFilter.value) {
+          params.append('fq', `unit:"${unitFilter.value}"`);
+        }
+
+        const response = await fetch(`http://localhost:8984/solr/qpscan/select?${params.toString()}&wt=json`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
         });
 
         if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
+          throw new Error(`Search error: ${response.status}`);
         }
 
         const data = await response.json();
-        searchResult.textContent = JSON.stringify(data, null, 2);
-        searchResult.className = 'api-result';
+
+        if (data.response.numFound === 0) {
+          resultsDiv.innerHTML = `<div class="error-message">No documents contain any of the terms: '${query}'</div>`;
+          return;
+        }
+
+        resultsDiv.innerHTML = `<div class="results-summary">Found ${data.response.numFound} matches (best first):</div>`;
+
+        data.response.docs.forEach((doc, index) => {
+          const content = doc.content;
+          const highlights = data.highlighting?.[doc.id]?.content || [];
+
+          const resultHtml = `
+            <div class="result-item">
+              <div class="result-header">
+                <div class="result-title">Result ${index + 1}</div>
+                <div class="result-score">Score: ${doc.score.toFixed(2)}</div>
+              </div>
+              <div class="result-metadata">
+                <div>File: ${doc.file_name}</div>
+                <div>Date: ${doc.month} ${doc.year}, Unit ${doc.unit}</div>
+              </div>
+              <div class="result-content">
+                ${highlights.length > 0 ?
+                  highlights.join('\n[...]\n') :
+                  content}
+              </div>
+            </div>`;
+
+          resultsDiv.innerHTML += resultHtml;
+        });
+
       } catch (err) {
-        searchResult.textContent = `Error: ${err.message}`;
-        searchResult.className = 'error-message';
+        resultsDiv.innerHTML = `<div class="error-message">Error: ${err.message}</div>`;
+      } finally {
+        searchButton.disabled = false;
       }
     });
   </script>
