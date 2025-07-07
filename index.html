@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --primary-color: #2563eb;
@@ -157,30 +156,36 @@
       justify-content: space-between;
       align-items: flex-start;
       margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
     }
 
     .result-title {
       font-weight: 600;
+      font-size: 1.1rem;
       color: var(--primary-color);
     }
 
-    .result-score {
-      font-size: 0.9rem;
-      color: var(--text-color);
-      opacity: 0.8;
+    .match-item {
+        margin-top: 1rem;
     }
 
     .result-metadata {
       font-size: 0.9rem;
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
       color: var(--text-color);
       opacity: 0.8;
+      font-family: monospace;
     }
 
     .result-content {
       font-size: 1rem;
       line-height: 1.6;
       white-space: pre-wrap;
+      background: var(--card-bg);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border-color);
     }
 
     .result-content mark {
@@ -216,38 +221,20 @@
     <div class="search-container">
       <div class="search-options">
         <div class="option-group">
-          <label for="searchInput">Search Terms</label>
-          <input type="text" id="searchInput" placeholder="Enter search terms..." required>
+          <label for="examBoardFilter">Exam Board</label>
+          <input type="text" id="examBoardFilter" placeholder="e.g., AQA, Edexcel" required>
         </div>
         <div class="option-group">
-          <label for="maxResults">Maximum Results</label>
-          <input type="number" id="maxResults" value="50" min="1" max="100">
+          <label for="examQualificationsFilter">Qualification</label>
+          <input type="text" id="examQualificationsFilter" placeholder="e.g., A-Level, GCSE" required>
         </div>
         <div class="option-group">
-          <label for="yearFilter">Filter by Year</label>
-          <input type="number" id="yearFilter" placeholder="e.g., 2023">
+          <label for="examSubjectFilter">Subject</label>
+          <input type="text" id="examSubjectFilter" placeholder="e.g., Physics, Maths" required>
         </div>
-        <div class="option-group">
-          <label for="monthFilter">Filter by Month</label>
-          <select id="monthFilter">
-            <option value="">All Months</option>
-            <option value="January">January</option>
-            <option value="February">February</option>
-            <option value="March">March</option>
-            <option value="April">April</option>
-            <option value="May">May</option>
-            <option value="June">June</option>
-            <option value="July">July</option>
-            <option value="August">August</option>
-            <option value="September">September</option>
-            <option value="October">October</option>
-            <option value="November">November</option>
-            <option value="December">December</option>
-          </select>
-        </div>
-        <div class="option-group">
-          <label for="unitFilter">Filter by Unit</label>
-          <input type="text" id="unitFilter" placeholder="Enter unit...">
+        <div class="option-group" style="grid-column: 1 / -1;">
+          <label for="examQueryInput">Query</label>
+          <input type="text" id="examQueryInput" placeholder="Enter search query..." required>
         </div>
       </div>
       <button id="searchButton">Search Documents</button>
@@ -281,87 +268,86 @@
     const resultsDiv = document.getElementById('results');
 
     searchButton.addEventListener('click', async () => {
-      const searchInput = document.getElementById('searchInput');
-      const maxResults = document.getElementById('maxResults');
-      const yearFilter = document.getElementById('yearFilter');
-      const monthFilter = document.getElementById('monthFilter');
-      const unitFilter = document.getElementById('unitFilter');
+      const examQueryInput = document.getElementById('examQueryInput');
+      const examBoardFilter = document.getElementById('examBoardFilter');
+      const examQualificationsFilter = document.getElementById('examQualificationsFilter');
+      const examSubjectFilter = document.getElementById('examSubjectFilter');
 
-      const query = searchInput.value.trim();
-      if (!query) {
-        resultsDiv.innerHTML = '<div class="error-message">Search terms cannot be empty</div>';
-        return;
+      // Client-side validation since all fields are required by the new API
+      const searchRequest = {
+          Exam_board: examBoardFilter.value.trim(),
+          Exam_Qualifications: examQualificationsFilter.value.trim(),
+          Exam_Subject: examSubjectFilter.value.trim(),
+          Exam_Query: examQueryInput.value.trim()
+      };
+
+      if (!searchRequest.Exam_board || !searchRequest.Exam_Qualifications || !searchRequest.Exam_Subject || !searchRequest.Exam_Query) {
+          resultsDiv.innerHTML = '<div class="error-message">All fields are required.</div>';
+          return;
       }
 
       searchButton.disabled = true;
       resultsDiv.innerHTML = '<div class="result-item">Searching...</div>';
 
       try {
-        // Construct the search URL with parameters
-        const params = new URLSearchParams();
-        params.set('q', query);
-        params.set('rows', maxResults.value);
-
-        if (yearFilter.value) {
-          params.append('fq', `year:${yearFilter.value}`);
-        }
-        if (monthFilter.value) {
-          params.append('fq', `month:"${monthFilter.value}"`);
-        }
-        if (unitFilter.value) {
-          params.append('fq', `unit:"${unitFilter.value}"`);
-        }
-
-        const response = await fetch(`http://localhost:8984/solr/qpscan/select?${params.toString()}&wt=json`, {
-          method: 'GET',
+        const response = await fetch(`http://localhost:8080/api/search`, {
+          method: 'POST',
           headers: {
+            'Content-Type': 'application/json',
             'Accept': 'application/json'
-          }
+          },
+          body: JSON.stringify(searchRequest)
         });
 
         if (!response.ok) {
-          throw new Error(`Search error: ${response.status}`);
+          // The new API returns plain text errors, so use .text()
+          const errorText = await response.text();
+          throw new Error(`API Error: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
 
-        if (data.response.numFound === 0) {
-          resultsDiv.innerHTML = `<div class="error-message">No documents contain any of the terms: '${query}'</div>`;
+        if (!data || data.length === 0) {
+          resultsDiv.innerHTML = `<div class="error-message">No matching documents found.</div>`;
           return;
         }
 
-        resultsDiv.innerHTML = `<div class="results-summary">Found ${data.response.numFound} matches (best first):</div>`;
+        resultsDiv.innerHTML = `<div class="results-summary">Found ${data.length} file(s) with matches:</div>`;
 
-        data.response.docs.forEach((doc, index) => {
-          const content = doc.content;
-          const highlights = data.highlighting?.[doc.id]?.content || [];
+        data.forEach((fileResult) => {
+            let matchesHtml = '';
+            fileResult.matches.forEach(match => {
+                matchesHtml += `
+                    <div class="match-item">
+                        <div class="result-metadata">JSON Path: ${match.EntryPath || 'root'}</div>
+                        <div class="result-content">${escapeHtml(match.Value)}</div>
+                    </div>`;
+            });
 
-          const resultHtml = `
+            const resultHtml = `
             <div class="result-item">
               <div class="result-header">
-                <div class="result-title">Result ${index + 1}</div>
-                <div class="result-score">Score: ${doc.score.toFixed(2)}</div>
+                <div class="result-title">${escapeHtml(fileResult.file)}</div>
               </div>
-              <div class="result-metadata">
-                <div>File: ${doc.file_name}</div>
-                <div>Date: ${doc.month} ${doc.year}, Unit ${doc.unit}</div>
-              </div>
-              <div class="result-content">
-                ${highlights.length > 0 ?
-                  highlights.join('\n[...]\n') :
-                  content}
-              </div>
+              ${matchesHtml}
             </div>`;
 
           resultsDiv.innerHTML += resultHtml;
         });
 
       } catch (err) {
-        resultsDiv.innerHTML = `<div class="error-message">Error: ${err.message}</div>`;
+        resultsDiv.innerHTML = `<div class="error-message">${escapeHtml(err.message)}</div>`;
       } finally {
         searchButton.disabled = false;
       }
     });
+
+    // Helper function to prevent XSS from file paths or content
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
   </script>
 </body>
 </html>
